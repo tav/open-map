@@ -1,0 +1,27 @@
+# Public Domain (-) 2013 The Open Map Authors.
+# See the Open Map UNLICENSE file for details.
+
+generate:
+
+- client.js:
+    source:
+      - https://raw.github.com/tav/jsutil/master/define.coffee
+      - coffee/client.coffee
+
+- site.css:
+    source:
+      - coffee/style.coffee
+
+- gfx/*:
+    source:
+      - gfx/*
+    type: binary
+
+output.directory: app/build
+output.hashed: true
+output.manifest: app/assets.json
+
+profile.dev:
+  css.compress: false
+  js.compress: false
+  output.hashed: false

@@ -22,6 +22,9 @@ handlers:
   static_files: static/robots.txt
   upload: static/robots.txt
 
+- url: /fixed
+  static_dir: fixed
+
 - url: /static
   static_dir: build
 

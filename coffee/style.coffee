@@ -7,6 +7,10 @@ module.exports = (api) ->
     controlsPadding = 20
     controlsWidth = 300
 
+    colorAlt = '#94003a'
+    colorMain = '#302755'
+    innerMargin = 80
+
     api.add
 
         html:
@@ -14,7 +18,7 @@ module.exports = (api) ->
 
         body:
             background: '#fff'
-            fontFamily: 'proxima-nova'
+            fontFamily: 'museo'
             fontSize: '16px'
             height: '100%'
             margin: 0
@@ -25,9 +29,9 @@ module.exports = (api) ->
             ':hover':
                 textDecoration: 'none'
 
-        '#atlas':
-            height: "#{controlsHeight}px"
-            width: '100%'
+        '#atlas-info':
+            marginLeft: "#{innerMargin + 30}px"
+            marginTop: '40px'
 
         '#browser-upgrade':
             background: '#ec5354'
@@ -43,64 +47,119 @@ module.exports = (api) ->
                 ':hover':
                     textDecoration: 'none'
 
-        '#content':
-            margin: '20px auto'
-            width: '800px'
-
-        '#controls':
-            background: '#f8f8f8'
-            background: '#fff'
-            float: 'left'
-            height: "#{controlsHeight}px"
-            padding: "#{controlsPadding}px"
-            width: "#{controlsWidth - (2 * controlsPadding)}px"
-
-        '#filters':
-            listStyleType: 'none'
-            margin: 0
-            padding: 0
-
-            li:
-                cursor: 'pointer'
-                float: 'left'
-                marginBottom: '12px'
-                marginRight: '10px'
-                width: "#{((controlsWidth - (2 * controlsPadding)) - 20)/2}px"
-
-        '#nav':
+        '#image-dimensions':
+            border: 0
+            fontSize: '26px'
             fontFamily: 'museo'
-            fontSize: '20px'
-            lineHeight: '20px'
-            padding: '20px'
-            textAlign: 'center'
+            marginLeft: '150px'
+            marginTop: '40px'
+            outline: 'none'
+
+        '#image-submit':
+            background: colorMain
+            border: '0px'
+            color: '#fff'
+            fontSize: '16px'
+            fontFamily: 'museo'
+            marginLeft: '450px'
+            marginTop: '20px'
+            padding: '10px'
+
+        '#image-title':
+            border: '1px solid #ccc'
+            fontSize: '16px'
+            fontFamily: 'museo'
+            marginBottom: '20px'
+            padding: '10px'
+            width: '500px'
+
+        '#map':
+            width: '100%'
+
+        '#map-container':
+            borderTop: '2px dotted #000'
+            margin: '0 auto'
+            position: 'relative'
+
+        '#map-filters':
+            background: 'rgba(255,255,255,0.8)'
+            height: '20px'
+            paddingTop: '3px'
+            position: 'absolute'
+            width: '100%'
+            zIndex: 200
+            bottom: 0
 
             a:
-                color: '#000'
-                textDecoration: 'none'
-                padding: '20px'
-                ':hover':
-                    background: '#1a1a1a'
-                    color: '#fff'
+                color: colorMain
+                cursor: 'pointer'
+                fontSize: '14px'
+                padding: '3px'
 
-        '.admin-success':
+        '#nav':
+            fontFamily: 'veneer'
             fontSize: '40px'
+            lineHeight: '40px'
+            margin: "0 #{innerMargin}px"
+            padding: '30px'
+
+            a:
+                color: '#aaa'
+                textDecoration: 'none'
+                paddingRight: '40px'
+                ':hover':
+                    color: colorMain
+
+        '#places':
+            borderTop: 0
+            borderLeft: 0
+            borderRight: 0
+            borderBottom: '2px dashed #5E5C6B'
+            marginTop: '40px'
+            marginRight: "#{innerMargin + 30}px"
+            outline: 'none'
+            width: '200px'
+
+        '#type-desc':
+            color: colorAlt
+
+        '#type-name':
+            color: colorAlt
+            fontWeight: 700
+
+        '#type-quote':
+            color: colorMain
+            fontFamily: 'veneer'
+            fontSize: '32px'
+            lineHeight: '32px'
             marginBottom: '20px'
 
-        '.button':
-            background: '#ec5354'
-            color: '#fff'
-            display: 'block'
-            margin: '20px auto'
-            padding: '20px'
-            width: '60%'
-            textAlign: 'left'
-            textDecoration: 'none'
+        '.alert':
+            fontSize: '40px'
+            marginBottom: '20px'
 
         '.clear':
             clear: 'both'
 
+        '.float-right':
+            float: 'right'
+            marginLeft: '20px'
+
+        '.inner':
+            margin: "0 #{innerMargin}px"
+
+        '.inner-content':
+            margin: "0 #{innerMargin}px"
+            padding: '10px 30px'
+
         '.pad-more':
             paddingTop: '4px !important'
+
+        '.selected-filter':
+            color: "#{colorAlt} !important"
+
+        '.selected-nav':
+            color: '#302755 !important'
 
         '.skip-entry':
             background: '#f8f8ff'

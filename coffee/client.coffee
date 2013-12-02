@@ -6,173 +6,210 @@ define 'openmap', (exports, root) ->
     doc = root.document
     doc.$ = doc.getElementById
 
-    gm = google.maps
-    ge = gm.event
-
-    map = null
-    markers = []
-
-    $atlas = doc.$ 'atlas'
-    $controls = doc.$ 'controls'
-    $filters = doc.$ 'filters'
-    $zoomControls = doc.createElement 'div'
-
-    $controls.style.display = 'none'
-
-    for feature in ['JSON', 'XMLHttpRequest']
+    for feature in ['JSON', 'XMLHttpRequest', 'addEventListener']
         if not root[feature]?
-            $atlas.innerHTML = '<div id="browser-upgrade">Sorry, <a href="http://browsehappy.com/">please upgrade</a> to a more modern browser.</div>'
+            doc.body.innerHTML = '<div id="browser-upgrade">Sorry, <a href="http://browsehappy.com/">please upgrade</a> to a more modern browser.</div>'
             return
 
-    root.onresize = ->
-        # $atlas.style.height = "#{doc.documentElement.clientHeight - 60}px"
-        $atlas.style.height = "500px"
-        $atlas.style.width = "#{doc.documentElement.clientWidth}px"
-        # $atlas.style.width = "#{doc.documentElement.clientWidth - 300}px"
+    exports.loadAtlas = ->
 
-    root.onresize()
+        gm = google.maps
+        ge = gm.event
 
-    filterCount = 0
-    addFilter = (idx, name) ->
-        $el = doc.createElement 'li'
-        if idx is -1
-            $el.innerText = 'All'
-        else
-            idx = parseInt idx, 10
-            $el.innerText = "#{name}s"
-            filterCount += 1
-            if filterCount % 2
-                $el.className = 'clear'
-        $el.onclick = ->
+        map = null
+        markers = []
+
+        $atlasInfo = doc.$ 'atlas-info'
+
+        $typeInfo = doc.$ 'type-info'
+        $typeDesc = doc.$ 'type-desc'
+        $typeName = doc.$ 'type-name'
+        $typeQuote = doc.$ 'type-quote'
+
+        $map = doc.$ 'map'
+        $mapContainer = doc.$ 'map-container'
+        $filters = doc.$ 'map-filters'
+        $zoomControls = doc.createElement 'div'
+
+        root.onresize = ->
+            innerWidth = doc.documentElement.clientWidth - (2 * (80 + 30))
+            # $atlas.style.height = "#{doc.documentElement.clientHeight - 60}px"
+            $map.style.height = "500px"
+            $mapContainer.style.height = "500px"
+            $mapContainer.style.width = "#{innerWidth}px"
+            $atlasInfo.style.width = "#{innerWidth - 300 - 20}px"
+            # $atlas.style.width = "#{doc.documentElement.clientWidth - 300}px"
+
+        root.onresize()
+
+        addFilter = (idx, name, desc, quote) ->
+            $el = doc.createElement 'a'
             if idx is -1
-                for marker in markers
-                    marker.setMap map
+                $el.innerText = 'All'
             else
-                for marker in markers
-                    if marker.__typ is idx
+                idx = parseInt idx, 10
+                $el.innerText = "##{name}"
+            $el.onclick = ->
+                if $el.className is 'selected-filter'
+                    for marker in markers
                         marker.setMap map
-                    else
-                        marker.setMap null
+                    $el.className = ''
+                    $typeInfo.style.display = 'none'
+                else
+                    for marker in markers
+                        if marker.__typ is idx
+                            marker.setMap map
+                        else
+                            marker.setMap null
+                    for el in $filters.childNodes
+                        el.className = ''
+                    $el.className = 'selected-filter'
+                    $typeQuote.innerText = quote
+                    $typeName.innerText = "##{name}"
+                    $typeDesc.innerText = desc
+                    $typeInfo.style.display = 'block'
+                return
+            $el.__typ = idx
+            $filters.appendChild $el
             return
-        $filters.appendChild $el
-        return
 
-    addFilter -1
-    for idx, name of MARKER_TYPES
-        addFilter idx, name
-        console.log idx
-        console.log name
+        icons = []
+        for [name, idx, desc, quote] in TYPES_DATA
+            addFilter idx, name, desc, quote
+            icons[idx] = name.toLowerCase()
 
-    # $filters.appendChild
-    # $controls.innerHTML = controlsInner
+        for [typ, lat, lng, name] in ATLAS_DATA
+            marker = new google.maps.Marker
+                position: new google.maps.LatLng(lat, lng)
+                title: name
+                icon: "/fixed/#{icons[typ]}.png"
+            marker.__typ = typ
+            markers.push marker
 
-    # markerImages = {}
-    # for k, v of MARKER_ICONS
-    #     markerImages[k] =
+        lowLayer = 'grey'
+        highLayer = 'toner-lite'
 
-    for [typ, lat, lng, name] in MARKERS
-        marker = new google.maps.Marker
-            position: new google.maps.LatLng(lat, lng)
-            title: name
-            # icon: "/markers/#{MARKER_ICONS[typ]}.png"
-            icon: "/markers/marker-red-10px.png"
-        marker.__typ = typ
-        markers.push marker
+        plusVisible = true
+        minusVisible = false
 
-    lowLayer = 'grey'
-    highLayer = 'toner-lite'
+        minZoom = 2
+        maxZoom = 20
+        zoomLevel = 2
 
-    minZoom = 2
-    maxZoom = 20
-    zoomLevel = 2
+        zoomControl = (text, handler) ->
+            el = doc.createElement 'div'
+            el.innerHTML = text
+            if text is '-'
+                el.className = 'zoom-control pad-more'
+                el.style.visibility = 'hidden'
+            else
+                el.className = 'zoom-control'
+            $zoomControls.appendChild el
+            ge.addDomListener el, 'click', handler
+            return el
 
-    zoomControl = (text, handler) ->
-        el = doc.createElement 'div'
-        el.innerHTML = text
-        if text is '-'
-            el.className = 'zoom-control pad-more'
-            el.style.visibility = 'hidden'
-        else
-            el.className = 'zoom-control'
-        $zoomControls.appendChild el
-        ge.addDomListener el, 'click', handler
-        return el
-
-    $zoomIn = zoomControl '+', ->
-        level = map.getZoom()
-        if level is maxZoom
+        $zoomIn = zoomControl '+', ->
+            level = map.getZoom()
+            if level is maxZoom
+                return
+            map.setZoom(level + 1)
             return
-        map.setZoom(level + 1)
-        return
 
-    $zoomOut = zoomControl '-', ->
-        level = map.getZoom()
-        if level is minZoom
+        $zoomOut = zoomControl '-', ->
+            level = map.getZoom()
+            if level is minZoom
+                return
+            map.setZoom(level - 1)
             return
-        map.setZoom(level - 1)
+
+        grey = [{
+            featureType: 'all'
+            elementType: 'all'
+            stylers: [
+                saturation: -100
+            ]}, {
+            featureType: 'water'
+            stylers: [
+                lightness: 100
+            ]}, {
+            featureType: 'water'
+            elementType: 'labels'
+            stylers: [
+                visibility: 'off'
+            ]}, {
+            featureType: 'administrative.province'
+            elementType: 'labels'
+            stylers: [
+                visibility: 'off'
+            ]}
+        ]
+
+        map = new gm.Map $map,
+            center: new gm.LatLng(15, 0)
+            disableDefaultUI: true
+            mapTypeId: lowLayer
+            mapTypeControlOptions:
+                mapTypeIds: [lowLayer, highLayer]
+            minZoom: minZoom
+            maxZoom: maxZoom
+            zoom: zoomLevel
+            scrollwheel: false
+            backgroundColor: '#ffffff'
+
+        map.mapTypes.set lowLayer, new gm.StyledMapType(grey, name: 'grey')
+        map.mapTypes.set highLayer, new gm.StamenMapType(highLayer)
+
+        ge.addListener map, 'zoom_changed', ->
+            level = map.getZoom()
+            if level >= 10
+                map.setMapTypeId highLayer
+            else
+                map.setMapTypeId lowLayer
+            if level is minZoom
+                if minusVisible
+                    $zoomOut.style.visibility = 'hidden'
+                    minusVisible = false
+            else if level is maxZoom
+                if plusVisible
+                    $zoomIn.style.visibility = 'hidden'
+                    plusVisible = false
+            else
+                if not plusVisible
+                    $zoomIn.style.visibility = 'visible'
+                    plusVisible = true
+                if not minusVisible
+                    $zoomOut.style.visibility = 'visible'
+                    minusVisible = true
+            return
+
+        ge.addListener map, 'bounds_changed', ->
+            return
+
+        map.controls[gm.ControlPosition.RIGHT_TOP].push $zoomControls
+
+        for marker in markers
+            marker.setMap(map)
+
+        topLeft = new google.maps.LatLng(-90, -180)
+        bottomRight = new google.maps.LatLng(90, 180)
+        noBounds = new google.maps.LatLngBounds topLeft, bottomRight
+
+        places = new google.maps.places.Autocomplete doc.$('places'), bounds: noBounds
+        ge.addListener places, 'place_changed', ->
+            place = places.getPlace()
+            if place.geometry?
+                if place.geometry.viewport?
+                    map.fitBounds place.geometry.viewport
+                else
+                    map.setCenter place.geometry.location
+                    map.setZoom 16
+                    # bounds = new google.maps.LatLngBounds()
+                    # bounds.extend place.geometry.location
+                    # map.fitBounds bounds
+                    # ge.addListenerOnce map, 'idle', ->
+                    #     map.setZoom 16
+            return
+
         return
-
-    grey = [{
-        featureType: 'all'
-        elementType: 'all'
-        stylers: [
-            saturation: -100
-        ]}, {
-        featureType: 'water'
-        stylers: [
-            lightness: 100
-        ]}, {
-        featureType: 'water'
-        elementType: 'labels'
-        stylers: [
-            visibility: 'off'
-        ]}, {
-        featureType: 'administrative.province'
-        elementType: 'labels'
-        stylers: [
-            visibility: 'off'
-        ]}
-    ]
-
-    map = new gm.Map $atlas,
-        center: new gm.LatLng(15, 0)
-        disableDefaultUI: true
-        mapTypeId: lowLayer
-        mapTypeControlOptions:
-            mapTypeIds: [lowLayer, highLayer]
-        minZoom: minZoom
-        maxZoom: maxZoom
-        zoom: zoomLevel
-        scrollwheel: false
-        backgroundColor: '#ffffff'
-
-    map.mapTypes.set lowLayer, new gm.StyledMapType(grey, name: 'grey')
-    map.mapTypes.set highLayer, new gm.StamenMapType(highLayer)
-
-    ge.addListener map, 'zoom_changed', ->
-        level = map.getZoom()
-        if level >= 11
-            map.setMapTypeId highLayer
-        else
-            map.setMapTypeId lowLayer
-        if level is minZoom
-            $zoomOut.style.visibility = 'hidden'
-        else if level is (minZoom + 1)
-            $zoomOut.style.visibility = 'visible'
-        else if level is (maxZoom - 1)
-            $zoomIn.style.visibility = 'visible'
-        else if level is maxZoom
-            $zoomIn.style.visibility = 'hidden'
-        return
-
-    ge.addListener map, 'bounds_changed', ->
-        # console.log map.getBounds()
-        console.log "new bounds"
-        return
-
-    map.controls[gm.ControlPosition.RIGHT_TOP].push $zoomControls
-
-    for marker in markers
-        marker.setMap(map)
 
     return

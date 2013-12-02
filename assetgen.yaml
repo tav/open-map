@@ -5,11 +5,18 @@ generate:
 
 - client.js:
     source:
+      - js/tile.stamen.js
+      - coffee/oms.coffee
       - https://raw.github.com/tav/jsutil/master/define.coffee
       - coffee/client.coffee
 
 - site.css:
     source:
+      - raw: |
+          @font-face {
+          font-family: "veneer";
+          src: url("/fixed/veneer.otf");
+          }
       - coffee/style.coffee
 
 - gfx/*:

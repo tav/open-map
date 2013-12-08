@@ -1,0 +1,82 @@
+#! /usr/bin/env python
+
+# Public Domain (-) 2013 The Open Map Authors.
+# See the Open Map UNLICENSE file for details.
+
+from csv import excel, writer
+from json import load
+from pprint import pprint
+
+rows = [
+    'Status',
+    'Name',
+    'Geo',
+    'Web',
+    'Link',
+    'Email',
+    'Facebook',
+    'Twitter',
+    'Phone',
+    'Addr 1',
+    'Addr 2',
+    'City',
+    'State',
+    'Postcode',
+    'Country',
+    'Desc',
+]
+
+kinds = {
+    'fab_lab': "Fab Lab",
+    'planned_fab_lab': "Planned",
+    'mini_fab_lab': "Mini",
+    None: "???"
+}
+
+data = []
+labs = load(open('fablabs.json', 'rb'))['labs']
+
+for lab in labs:
+    info = {}
+    info['Name'] = lab['name'] or ''
+    info['Web'] = lab['url'] or ''
+    info['Link'] = info['Facebook'] = info['Twitter'] = ''
+    for link in lab['links']:
+        link = link['url']
+        if 'facebook.com' in link:
+            info['Facebook'] = link
+        elif 'twitter.com' in link:
+            info['Twitter'] = link
+        elif not info['Link']:
+            info['Link'] = link
+    info['Email'] = lab['email'] or ''
+    info['Status'] = kinds[lab['kind_name']]
+    info['Addr 1'] = lab['address_1'] or ''
+    info['Addr 2'] = lab['address_2'] or ''
+    info['Postcode'] = lab['postal_code'] or ''
+    info['City'] = lab['city'] or ''
+    info['State'] = lab['county'] or ''
+    info['Country'] = lab['country_code'] or ''
+    info['Geo'] = "%s,%s" % (lab['latitude'], lab['longitude'])
+    if lab['description']:
+        info['Desc'] = lab['description'].split('\n')[0]
+    elif lab['blurb']:
+        info['Desc'] = lab['blurb'].split('\n')[0]
+    else:
+        info['Desc'] = ''
+    info['Phone'] = lab['phone'] or ''
+    data.append(info)
+
+f = open('fablabs.csv', 'wb')
+w = writer(f, dialect=excel)
+w.writerow(rows)
+
+data = sorted(data, key=lambda x: (x['Country'], x['Name']))
+
+for info in data:
+    row = []
+    for col in rows:
+        row.append(info[col].encode('utf-8'))
+    w.writerow(row)
+
+f.close()

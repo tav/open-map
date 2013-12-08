@@ -4,8 +4,11 @@
 
 app/assets.json
 app/build/
+app/data.json
 app/secret.py
 coffee/*.js
+data/fablabs.csv
+data/fablabs.json
 
 # hidden files/directories
 

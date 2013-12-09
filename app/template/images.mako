@@ -1,9 +1,11 @@
+<% from urllib import urlencode %>
 <table>
 % for img in images:
 <tr>
     <td>
         ${img.title|h} (${img.width}x${img.height}) &mdash;
-        [<a href="/image.delete/${ctx.auth_key}/${img.key().name()}">Delete</a>]
+        <% title = urlencode({'title': img.title}) %>
+        [<a href="/image.upload/${ctx.auth_key}?${title|h}">Replace</a>, <a href="/image.delete/${ctx.auth_key}/${img.key().name()}">Delete</a>]
     </td>
 </tr>
 <tr>
@@ -17,5 +19,5 @@
 </table>
 
 % if cursor:
-<a href="/images/${ctx.auth_key}/${cursor}">More &gt;</a>
+<a class="action" href="/images/${ctx.auth_key}/${cursor}">More &gt;</a>
 % endif

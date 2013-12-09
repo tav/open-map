@@ -9,6 +9,7 @@ module.exports = (api) ->
 
     colorAlt = '#94003a'
     colorMain = '#302755'
+    colorMainLight = '#403765'
     innerMargin = 80
 
     api.add
@@ -120,6 +121,50 @@ module.exports = (api) ->
             outline: 'none'
             width: '200px'
 
+        '#slide-info':
+            marginLeft: "#{innerMargin + 30}px"
+            marginTop: '30px'
+
+        '#slides-container':
+            height: '450px'
+            overflow: 'hidden'
+            position: 'relative'
+            width: '100%'
+
+        '#slides-nav':
+            background: 'rgba(255,255,255,0.8)'
+            fontSize: '25px'
+            lineHeight: '40px'
+            height: '40px'
+            paddingLeft: "#{innerMargin + 28}px"
+            paddingTop: '0px'
+            position: 'absolute'
+            width: '100%'
+            zIndex: 200
+            bottom: 0
+
+        '#tweet-date':
+            color: '#aaa'
+            marginRight: '5px'
+            textDecoration: 'none'
+            ':hover':
+                textDecoration: 'underline'
+
+        '#tweet-message':
+            color: colorAlt
+            lineHeight: '30px'
+            marginRight: '5px'
+            textDecoration: 'none'
+            ':hover':
+                textDecoration: 'underline'
+
+        '#tweet-user':
+            color: colorMain
+            marginRight: '5px'
+            textDecoration: 'none'
+            ':hover':
+                textDecoration: 'underline'
+
         '#type-desc':
             color: colorAlt
 
@@ -133,6 +178,18 @@ module.exports = (api) ->
             fontSize: '32px'
             lineHeight: '32px'
             marginBottom: '20px'
+
+        '.action':
+            background: colorMain
+            border: '0px'
+            color: '#fff'
+            display: 'block'
+            fontSize: '16px'
+            margin: '20px 10px 30px 470px'
+            padding: '10px'
+            textAlign: 'right'
+            textDecoration: 'none'
+            width: '150px'
 
         '.alert':
             fontSize: '40px'
@@ -152,6 +209,26 @@ module.exports = (api) ->
             margin: "0 #{innerMargin}px"
             padding: '10px 30px'
 
+
+        '.new-input':
+            border: '1px solid #ccc'
+            fontSize: '16px'
+            fontFamily: 'museo'
+            marginBottom: '20px'
+            padding: '10px'
+            width: '500px'
+
+        '#new-submit':
+            background: colorMain
+            border: '0px'
+            color: '#fff'
+            fontSize: '16px'
+            fontFamily: 'museo'
+            marginLeft: '450px'
+            marginTop: '20px'
+            padding: '10px'
+
+
         '.pad-more':
             paddingTop: '4px !important'
 
@@ -169,6 +246,23 @@ module.exports = (api) ->
 
         '.skip-reason':
             color: '#f9002c'
+
+        '.slide':
+            backgroundSize: 'contain'
+            cursor: 'pointer'
+            position: 'absolute'
+
+        '.slide-anim':
+            transition: 'left 1s'
+
+        '.slide-ctrl':
+            color: colorMain
+            cursor: 'pointer'
+            float: 'left'
+            width: '40px'
+
+        '.slide-ctrl-cur':
+            color: "#{colorAlt} !important"
 
         '.zoom-control':
             background: '#1a1a1a'

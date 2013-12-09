@@ -10,12 +10,15 @@ from traceback import format_exception
 
 from config import (
     ADMIN_SECRET, GMAP_KEY, SITE_TITLE, DATA_SPREADSHEET,
-    TYPEKIT_ID, TYPES_SPREADSHEET
+    TYPEKIT_ID, TYPES_SPREADSHEET, TWITTER_CONSUMER_KEY,
+    TWITTER_CONSUMER_SECRET, TWITTER_ACCESS_TOKEN,
+    TWITTER_ACCESS_SECRET, TWITTER_HOME_ACCOUNT
     )
 
 from weblite import Context, NotFound, Redirect, app, handle
 from tavutil.crypto import secure_string_comparison
 from tavutil.exception import html_format_exception
+from twitter import Client
 
 from google.appengine.api import images
 from google.appengine.api import memcache
@@ -38,6 +41,29 @@ TYPES_URL = (
     )
 
 find_hashtags = compile_regex(r"#(\w+)").findall
+
+ORDINALS = [
+    '', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th',
+    '8th', '9th', '10th', '11th', '12th', '13th', '14th',
+    '15th', '16th', '17th', '18th', '19th', '20th', '21st',
+    '22nd', '23rd', '24th', '25th', '26th', '27th', '28th',
+    '29th', '30th', '31st'
+    ]
+
+MONTHS = {
+    'Jan': 'January',
+    'Feb': 'February',
+    'Mar': 'March',
+    'Apr': 'April',
+    'May': 'May',
+    'Jun': 'June',
+    'Jul': 'July',
+    'Aug': 'August',
+    'Sep': 'September',
+    'Oct': 'October',
+    'Nov': 'November',
+    'Dec': 'December'
+}
 
 # -----------------------------------------------------------------------------
 # Context Extensions
@@ -208,13 +234,50 @@ def parse_types_data():
             continue
         add_seen(name)
         desc = entry['gsx$desc']['$t'].strip()
-        # if not desc:
-        #     skip("The description cannot be empty")
-        #     continue
         quote = entry['gsx$quote']['$t'].strip()
         types.append([name, i-1, desc, quote])
     types.sort()
     return updated, types, skipped
+
+# -----------------------------------------------------------------------------
+# Tweets
+# -----------------------------------------------------------------------------
+
+client = Client(
+    TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET, TWITTER_ACCESS_TOKEN,
+    TWITTER_ACCESS_SECRET
+    )
+
+def get_tweet(id):
+    key = 'tweet.%s' % id
+    tweet = memcache.get(key)
+    if tweet:
+        return tweet
+    try:
+        tweets = client.statuses.user_timeline(
+            screen_name=id, count=1, exclude_replies=True, include_rts=False
+            )
+    except Exception, err:
+        logging.error("Got error fetching tweets for %r: %s" % (id, err))
+        meta = Meta.get_by_key_name(key)
+        if meta:
+            memcache.set(key, meta.json, 600)
+            return meta.json
+        tweets = []
+    if tweets:
+        tweet = tweets[0]
+        date = tweet['created_at'].split()
+        info = [tweet['user']['screen_name']]
+        info.append("%s %s %s" % (MONTHS[date[1]], ORDINALS[int(date[2])], date[-1]))
+        info.append(tweet['text'])
+        info = encode_json(info)
+    else:
+        info = 'null'
+    meta = Meta.get_or_insert(key_name=key, json=info)
+    meta.json = info
+    meta.put()
+    memcache.set(key, info, 600)
+    return info
 
 # -----------------------------------------------------------------------------
 # Admin Access
@@ -263,11 +326,37 @@ def invitation(ctx):
 
 @handle('manifesto', ['manifesto', 'site'])
 def manifesto(ctx):
+    ctx.load_script = 'loadSlides'
     ctx.page = 'manifesto'
-    return
+    prefix = 'manifesto-slide-'
+    tweet_key = 'tweet.%s' % TWITTER_HOME_ACCOUNT
+    data = memcache.get_multi('manifesto.slides', tweet_key)
+    if 'manifesto.slides' in data:
+        slides = data['manifesto.slides']
+    else:
+        slides = []
+        for img in Image.all().filter(
+            '__key__ >=', db.Key.from_path('Image', prefix)
+            ).fetch(limit=10):
+            key = img.key().name()
+            if not key.startswith(prefix):
+                break
+            slides.append([key, img.width, img.height])
+        slides = encode_json(slides)
+        memcache.set('manifesto.data', slides, 60)
+    if tweet_key in data:
+        tweet = data[tweet_key]
+    else:
+        tweet = get_tweet(TWITTER_HOME_ACCOUNT)
+    return {'slides': slides, 'tweet': tweet}
 
 @handle('movement', ['movement', 'site'])
 def movement(ctx):
+    ctx.page = 'movement'
+    return
+
+@handle('new', ['new', 'site'])
+def new(ctx):
     ctx.page = 'movement'
     return
 
@@ -323,10 +412,11 @@ def image_saved(ctx, key='', data=None, error=None, title=None):
     return {'error': error, 'data': data, 'title': title}
 
 @handle('image.upload', ['image.upload', 'admin'])
-def image_upload(ctx, key=''):
+def image_upload(ctx, key='', title=None):
     is_auth(ctx, key)
     path = '/image.save/%s' % ctx.auth_key
     return {
+        'title': title,
         'upload_url': blobstore.create_upload_url(path)
     }
 
@@ -353,10 +443,10 @@ def image_list(ctx, key='', cursor=None):
     q = Image.all()
     if cursor:
         q = q.with_cursor(cursor)
-    cursor = None
     images = []
-    N = 2
+    N = 50
     last = N - 1
+    idx = None
     for idx, img in enumerate(q.run(limit=N+1)):
         if idx == N:
             break

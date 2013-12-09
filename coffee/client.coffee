@@ -212,4 +212,141 @@ define 'openmap', (exports, root) ->
 
         return
 
+    exports.loadSlides = ->
+
+        if TWEET?
+
+            $tweetUser = doc.$ 'tweet-user'
+            $tweetDate = doc.$ 'tweet-date'
+            $tweetMessage = doc.$ 'tweet-message'
+
+            tweetLink = "https://twitter.com/#{TWEET[0]}"
+
+            $tweetUser.href = tweetLink
+            $tweetDate.href = tweetLink
+            $tweetMessage.href = tweetLink
+
+            $tweetUser.innerHTML = "@#{TWEET[0]}"
+            $tweetDate.innerHTML = TWEET[1]
+            $tweetMessage.innerHTML = TWEET[2]
+
+        $slides = doc.$ 'slides-container'
+
+        direction = 'right'
+        ctrls = []
+        loaders = []
+        slides = []
+        curIdx = 0
+
+        loadSlide = (idx) ->
+            ->
+                if idx is curIdx
+                    return
+                $cur = slides[curIdx]
+                $next = slides[idx]
+                $next.className = 'slide'
+                $next.style.display = 'block'
+                if idx > curIdx
+                    $next.style.display = 'block'
+                    if (idx - curIdx) > 1
+                        i = curIdx + 1
+                        while i < idx
+                            slides[i].style.display = 'none'
+                            i++
+                    $next.style.left = "#{$next.__left}px"
+                    $cur.className = 'slide slide-anim'
+                    $cur.style.left = "#{$cur.__left + $cur.__width}px"
+                else
+                    if (curIdx - idx) > 1
+                        i = idx + 1
+                        while i < curIdx
+                            slides[i].style.display = 'none'
+                            i++
+                    $next.style.left = "#{$next.__left + $next.__width}px"
+                    $next.className = 'slide slide-anim'
+                    setTimeout(->
+                        $next.style.left = "#{$next.__left}px"
+                        return
+                    , 0)
+                ctrls[idx].className = 'slide-ctrl slide-ctrl-cur'
+                ctrls[curIdx].className = 'slide-ctrl'
+                curIdx = idx
+                if curIdx is (slides.length - 1)
+                    direction = 'left'
+                else if curIdx is 0
+                    direction = 'right'
+                return
+
+        nextSlide = ->
+            if direction is 'right'
+                loaders[curIdx+1]()
+            else
+                loaders[curIdx-1]()
+            return
+
+        root.onresize = ->
+            $slides.innerHTML = ''
+            $nav = doc.createElement 'div'
+            $nav.id = 'slides-nav'
+            idx = 0
+            curIdx = 0
+            direction = 'right'
+            ctrls = []
+            loaders = []
+            slides = []
+            screenWidth = doc.documentElement.clientWidth
+            slideHeight = SLIDE_HEIGHT
+            last = SLIDES.length - 1
+            for [slide, width, height] in SLIDES
+                $el = doc.createElement 'img'
+                $el.src = "/image.view/#{slide}"
+                $el.__idx = idx
+                if width <= screenWidth
+                    factor = screenWidth / width
+                    height *= factor
+                    width = screenWidth
+                if height <= slideHeight
+                    factor = slideHeight / height
+                    width *= factor
+                    height = slideHeight
+                if height > slideHeight
+                    diff = (height - slideHeight) / 2
+                    $el.style.top = "-#{diff}px"
+                if width > screenWidth
+                    diff = (width - screenWidth) / 2
+                    $el.style.left = "-#{diff}px"
+                    left = -(diff)
+                else
+                    $el.style.left = '0px'
+                    left = 0
+                $el.style.zIndex = 100 - idx
+                $el.width = width
+                $el.height = height
+                if idx isnt curIdx
+                    $el.style.display = 'none'
+                $el.onclick = nextSlide
+                $el.__width = width
+                $el.__left = left
+                $el.className = 'slide'
+                $slides.appendChild $el
+                $ctrl = doc.createElement 'div'
+                if idx is curIdx
+                    $ctrl.className = 'slide-ctrl slide-ctrl-cur'
+                else
+                    $ctrl.className = 'slide-ctrl'
+                $ctrl.innerHTML = '&bull;'
+                loader = loadSlide idx
+                idx += 1
+                $ctrl.onclick = loader
+                loaders.push loader
+                ctrls.push $ctrl
+                $nav.appendChild $ctrl
+                slides.push $el
+            $slides.appendChild $nav
+            return
+
+        root.onresize()
+
+        return
+
     return

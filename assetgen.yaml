@@ -6,6 +6,7 @@ generate:
 - client.js:
     source:
       - js/tile.stamen.js
+      - coffee/rng.js
       - https://raw.github.com/tav/jsutil/master/define.coffee
       - coffee/client.coffee
 

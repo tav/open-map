@@ -15,6 +15,7 @@ from config import (
     TWITTER_ACCESS_SECRET, TWITTER_HOME_ACCOUNT
     )
 
+from countries import COUNTRIES
 from weblite import Context, NotFound, Redirect, app, handle
 from tavutil.crypto import secure_string_comparison
 from tavutil.exception import html_format_exception
@@ -40,7 +41,8 @@ TYPES_URL = (
     % TYPES_SPREADSHEET
     )
 
-find_hashtags = compile_regex(r"#(\w+)").findall
+create_key = db.Key.from_path
+find_hashtags = compile_regex(r'(?i)(?<=\#)\w+').findall
 
 ORDINALS = [
     '', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th',
@@ -81,7 +83,9 @@ Context.typekit_id = TYPEKIT_ID
 
 class Entry(db.Model):
     json = db.TextProperty()
+    name = db.StringProperty(indexed=False)
     tags = db.StringListProperty()
+    twitter = db.StringProperty(indexed=False)
     updated = db.StringProperty()
 
 class Image(db.Model):
@@ -109,7 +113,7 @@ def get_data():
         return
     return resp.content
 
-def get_data():
+def get_data2():
     f = open('data.json', 'rb')
     data = f.read()
     return data
@@ -131,7 +135,7 @@ def norm_id(s, valid_chars=set('abcdefghijklmnopqrstuvwxyz0123456789')):
         else:
             dashed = 1
             push('-')
-    return ''.join(new).strip('-')
+    return ''.join(new)
 
 def parse_data():
     types_data = memcache.get('types.data')
@@ -141,7 +145,8 @@ def parse_data():
     logging.info(repr(types))
     data = decode_json(get_data())
     updated = data['feed']['updated']['$t']
-    brief = []; add_brief = brief.append
+    atlas = []; add_atlas = atlas.append
+    mosaic = []; add_mosaic = mosaic.append
     full = []; add_full = full.append
     skipped = []
     i = 1
@@ -185,16 +190,80 @@ def parse_data():
         if type not in types:
             skip("Invalid record type: %s" % repr(type)[1:])
             continue
-        img = entry['gsx$img']['$t'].strip()
-        if img:
-            try:
-                imgx, imgy = map(int, img.split('x'))
-            except Exception:
-                skip("Invalid image value: %s" % repr(img)[1:])
+        web = entry['gsx$web']['$t'].strip()
+        if web:
+            if not (web.startswith('http://') or web.startswith('https://')):
+                skip("Invalid website URL: %s" % repr(web)[1:])
                 continue
+            if web.count('http://') > 1:
+                skip("Invalid website URL: %s" % repr(web)[1:])
+                continue
+            if ' ' in web:
+                skip("Invalid website URL: %s" % repr(web)[1:])
+                continue
+        # established = entry['gsx$est']['$t'].strip()
+        # if established:
+        #     try:
+        #         established = int(established)
+        #     except:
+        #         skip("Invalid Est. year: %s" % repr(web)[1:])
+        #         continue
+        # else:
+        #     established = None
         desc = entry['gsx$desc']['$t'].strip()
-        add_brief((types[type], lat, lng, name, desc))
-    return updated, brief, full, skipped
+        if desc:
+            tags = find_hashtags(desc)
+        else:
+            tags = []
+        if name == 'Fablab Kamakura':
+            tags.append('Awesome')
+        elif name == 'Special Place':
+            logging.info("TAGS: %s" % tags)
+            tags.append('Hackspace')
+        ltags = [tag.lower() for tag in tags]
+        ltype = type.lower()
+        if ltype not in ltags:
+            ltags.append(ltype)
+            tags.append(type)
+        twitter = entry['gsx$twitter']['$t'].strip()
+        if twitter:
+            if twitter.startswith('https://twitter.com/'):
+                twitter_id = twitter[20:]
+            elif twitter.startswith('https://www.twitter.com/'):
+                twitter_id = twitter[24:]
+            if '/' in twitter_id:
+                skip("Invalid Twitter ID: %s" % repr(twitter)[1:])
+                continue
+            else:
+                twitter = twitter_id
+        facebook = entry['gsx$facebook']['$t'].strip()
+        if facebook:
+            if not (
+                facebook.startswith('http://www.facebook.com') or
+                facebook.startswith('https://www.facebook.com')
+                ):
+                skip("Invalid Facebook Link: %s" % repr(facebook)[1:])
+                continue
+        country = entry['gsx$country']['$t'].strip()
+        if country and len(country) == 2:
+            cupper = country.upper()
+            if cupper in COUNTRIES:
+                country = COUNTRIES[cupper]
+        address = '<br>'.join(filter(None, [
+            entry['gsx$address1']['$t'].strip(),
+            entry['gsx$address2']['$t'].strip(),
+            entry['gsx$address3']['$t'].strip(),
+            entry['gsx$address4']['$t'].strip(),
+            entry['gsx$postcode']['$t'].strip(),
+            country,
+        ]))
+        add_atlas((types[type], lat, lng, name, desc))
+        add_mosaic((name, tags))
+        add_full((
+            ident, name, ltags, twitter,
+            encode_json((name, desc, tags, web, twitter, facebook, address))
+            ))
+    return updated, atlas, mosaic, full, skipped
 
 # -----------------------------------------------------------------------------
 # Type Info
@@ -290,6 +359,34 @@ def is_auth(ctx, key):
     raise NotFound
 
 # -----------------------------------------------------------------------------
+# Images
+# -----------------------------------------------------------------------------
+
+def get_images():
+    images = Meta.get_or_insert('images')
+    if (not images) or (not images.json):
+        images_data = {}
+        cursor = None
+        while 1:
+            query = Image.all()
+            if cursor:
+                query = query.with_cursor(cursor)
+            cursor = None
+            i = 0
+            for img in query.fetch(limit=101):
+                i += 1
+                if i == 100:
+                    cursor = query.cursor()
+                images_data[img.key().name()] = [img.width, img.height]
+            if not cursor:
+                break
+        images.json = encode_json(images_data)
+        images.put()
+    images = images.json
+    memcache.add('images', images, 60)
+    return images
+
+# -----------------------------------------------------------------------------
 # Handlers
 # -----------------------------------------------------------------------------
 
@@ -306,7 +403,7 @@ def apps(ctx):
 def atlas(ctx):
     ctx.load_script = 'loadAtlas'
     ctx.page = 'atlas'
-    data = memcache.get_multi('atlas.data', 'types.data')
+    data = memcache.get_multi('atlas.data', 'types.data', 'images')
     if 'atlas.data' in data:
         atlas_data = data['atlas.data']
     else:
@@ -317,7 +414,14 @@ def atlas(ctx):
     else:
         types_data = Meta.get_by_key_name('types').json
         memcache.add('types.data', types_data, 60)
-    return {'atlas_data': atlas_data, 'types_data': types_data}
+    if 'images' in data:
+        images = data['images']
+    else:
+        images = get_images()
+    return {
+        'atlas_data': atlas_data, 'types_data': types_data,
+        'images': images
+        }
 
 @handle('invitation', ['invitation', 'site'])
 def invitation(ctx):
@@ -325,7 +429,7 @@ def invitation(ctx):
     return
 
 @handle('manifesto', ['manifesto', 'site'])
-def manifesto(ctx):
+def manifesto(ctx, profile=None):
     ctx.load_script = 'loadSlides'
     ctx.page = 'manifesto'
     prefix = 'manifesto-slide-'
@@ -336,7 +440,7 @@ def manifesto(ctx):
     else:
         slides = []
         for img in Image.all().filter(
-            '__key__ >=', db.Key.from_path('Image', prefix)
+            '__key__ >=', create_key('Image', prefix)
             ).fetch(limit=10):
             key = img.key().name()
             if not key.startswith(prefix):
@@ -350,15 +454,70 @@ def manifesto(ctx):
         tweet = get_tweet(TWITTER_HOME_ACCOUNT)
     return {'slides': slides, 'tweet': tweet}
 
+@handle('mosaic.js')
+def mosaic_js(ctx):
+    data = memcache.get_multi('mosaic.data', 'images')
+    if 'mosaic.data' in data:
+        mosaic_data = data['mosaic.data']
+    else:
+        mosaic = Meta.get_by_key_name('mosaic')
+        mosaic_data = mosaic.json
+        memcache.add('mosaic.data', mosaic_data, 60)
+    if 'images' in data:
+        images = data['images']
+    else:
+        images = get_images()
+    ctx.response_headers['Content-Type'] = 'text/javascript; charset=utf-8'
+    # ctx.cache_response(63)
+    return "MOSAIC_DATA=%s;IMAGES=%s;" % (mosaic_data, images)
+
 @handle('movement', ['movement', 'site'])
 def movement(ctx):
+    ctx.load_script = 'loadMosaic'
     ctx.page = 'movement'
-    return
 
 @handle('new', ['new', 'site'])
 def new(ctx):
     ctx.page = 'movement'
     return
+
+@handle('profile', ['profile', 'site'])
+def profile(ctx, id):
+    ctx.load_script = 'loadProfile'
+    ctx.page = 'movement'
+    entry = Entry.get_by_key_name(id)
+    if not entry:
+        raise NotFound
+    info = decode_json(entry.json)
+    # related = {}
+    # for tag in entry.tags:
+    #     for e in Entry.all().filter('tags =', tag).run(limit=1000):
+    #         ename = e.name
+    #         if ename not in related:
+    #             related[ename] = []
+    #         related[ename].append(tag)
+    tweet = None
+    if entry.twitter:
+        tweet = get_tweet(entry.twitter)
+    # tweet = get_tweet('wikihouse')
+    images = memcache.get('images')
+    if not images:
+        images = get_images()
+    ident = entry.key().name()
+    display_image = None
+    images_data = decode_json(images)
+    if ident in images_data:
+        x, y = images_data[ident]
+        display_image = int(y / (x/440.))
+    ctx.norm_id = norm_id
+    # ctx.cache_response(63)
+    return {
+        'display_image': display_image,
+        'ident': ident,
+        'info': info,
+        'tweet': tweet,
+        'twitter_id': entry.twitter
+    }
 
 # -----------------------------------------------------------------------------
 # Admin Handlers
@@ -398,6 +557,11 @@ def image_save(ctx, key='', title=None, file=None):
         ent.width = img.width
         ent.height = img.height
         ent.put()
+        atlas_images = Meta.get_by_key_name('images')
+        if atlas_images:
+            atlas_images.json = ''
+            atlas_images.put()
+            memcache.delete('images')
     except Exception, err:
         file.delete()
         raise Redirect(ctx.compute_url('image.saved', key=key, error=str(err)))
@@ -432,9 +596,11 @@ def image_view(ctx, ref, width=0, height=0, quality=85):
             output_encoding=images.JPEG, quality=int(quality)
             )
         ctx.response_headers['content-type'] = 'image/jpeg'
+        ctx.cache_response()
         return thumbnail
     ctx.response_headers['content-type'] = img.ctype
     ctx.response_headers['X-AppEngine-BlobKey'] = img.blob
+    ctx.cache_response()
     return
 
 @handle('images', ['images', 'admin'])
@@ -461,12 +627,36 @@ def image_list(ctx, key='', cursor=None):
 def data_refresh(ctx, key=''):
     is_auth(ctx, key)
     try:
-        updated, brief, full, skipped = parse_data()
-        meta = Meta.get_or_insert('atlas')
-        meta.updated = norm_datetime(updated)
-        meta.json = encode_json(brief, separators=(',', ':'))
-        meta.put()
-        memcache.set('atlas.data', meta.json, 60)
+        updated, atlas_data, mosaic_data, full, skipped = parse_data()
+        updated = norm_datetime(updated)
+        batch = []; add_entry = batch.append
+        i = 0
+        for ident, name, tags, twitter, json in full:
+            entry = Entry(key=create_key('Entry', ident))
+            entry.json = json
+            entry.name = name
+            entry.tags = tags
+            entry.twitter = twitter
+            entry.updated = updated
+            i += 1
+            add_entry(entry)
+            if i == 100:
+                db.put(batch)
+                del batch[:]
+                i = 0
+        if batch:
+            db.put(batch)
+        atlas = Meta.get_or_insert('atlas')
+        atlas.updated = updated
+        atlas.json = encode_json(atlas_data, separators=(',', ':'))
+        mosaic = Meta.get_or_insert('mosaic')
+        mosaic.updated = updated
+        mosaic.json = encode_json(mosaic_data, separators=(',', ':'))
+        db.put([atlas, mosaic])
+        memcache.set_multi({
+            'atlas.data': atlas.json,
+            'mosaic.data': mosaic.json,
+            }, 60)
     except Exception, err:
         logging.critical(''.join(format_exception(*sys.exc_info())))
         traceback = ''.join(html_format_exception())

@@ -1,0 +1,1 @@
+<script src="/mosaic.js"></script>

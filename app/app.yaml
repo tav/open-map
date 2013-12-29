@@ -21,12 +21,15 @@ handlers:
 - url: /robots.txt
   static_files: static/robots.txt
   upload: static/robots.txt
+  expiration: 1d
 
 - url: /fixed
   static_dir: fixed
+  expiration: 2h
 
 - url: /static
   static_dir: build
+  expiration: 1d
 
 - url: .*
   script: main.app

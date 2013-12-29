@@ -7,8 +7,10 @@
 </div>
 % else:
 <div class="alert">${title|h} image successfully saved!</div>
+<!--
 <p>Please copy/paste the following into the appropriate spreadsheet cell:</p>
 <input value="${data}" id="image-dimensions" autofocus>
+-->
 % endif
 
 <div>

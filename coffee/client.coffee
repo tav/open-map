@@ -11,6 +11,32 @@ define 'openmap', (exports, root) ->
             doc.body.innerHTML = '<div id="browser-upgrade">Sorry, <a href="http://browsehappy.com/">please upgrade</a> to a more modern browser.</div>'
             return
 
+    validChars = {'1': 1, '0': 1, '3': 1, '2': 1, '5': 1, '4': 1, '7': 1, '6': 1, '9': 1, '8': 1, 'a': 1, 'c': 1, 'b': 1, 'e': 1, 'd': 1, 'g': 1, 'f': 1, 'i': 1, 'h': 1, 'k': 1, 'j': 1, 'm': 1, 'l': 1, 'o': 1, 'n': 1, 'q': 1, 'p': 1, 's': 1, 'r': 1, 'u': 1, 't': 1, 'w': 1, 'v': 1, 'y': 1, 'x': 1, 'z': 1}
+
+    genID = (name) ->
+        name = name.toLowerCase()
+        id = []
+        dashed = false
+        for i in [0...name.length]
+            char = name.charAt i
+            if validChars[char]
+                dashed = false
+                id.push char
+            else if dashed
+                continue
+            else
+                dashed = true
+                id.push '-'
+        return id.join ''
+
+    hide = (el) ->
+        el.style.display = 'none'
+        return
+
+    show = (el) ->
+        el.style.display = 'block'
+        return
+
     exports.loadAtlas = ->
 
         gm = google.maps
@@ -20,6 +46,10 @@ define 'openmap', (exports, root) ->
         markers = []
 
         $atlasInfo = doc.$ 'atlas-info'
+        $newLink = doc.$ 'new-link'
+        $atlasEntry = doc.$ 'atlas-entry'
+        $atlasPhoto = doc.$ 'atlas-photo'
+        $atlasText = doc.$ 'atlas-text'
 
         $typeInfo = doc.$ 'type-info'
         $typeDesc = doc.$ 'type-desc'
@@ -33,15 +63,19 @@ define 'openmap', (exports, root) ->
 
         root.onresize = ->
             innerWidth = doc.documentElement.clientWidth - (2 * (80 + 30))
-            # $atlas.style.height = "#{doc.documentElement.clientHeight - 60}px"
-            $map.style.height = "500px"
-            $mapContainer.style.height = "500px"
+            innerHeight = doc.documentElement.clientHeight - 300
+            if innerHeight > 500
+                innerHeight = 500
+            else if innerHeight < 200
+                innerHeight = 200
+            $map.style.height = "#{innerHeight}px"
+            $mapContainer.style.height = "#{innerHeight}px"
             $mapContainer.style.width = "#{innerWidth}px"
-            $atlasInfo.style.width = "#{innerWidth - 300 - 20}px"
-            # $atlas.style.width = "#{doc.documentElement.clientWidth - 300}px"
+            $atlasInfo.style.width = "#{innerWidth - 220}px"
 
         root.onresize()
 
+        typeSelected = false
         addFilter = (idx, name, desc, quote) ->
             $el = doc.createElement 'a'
             if idx is -1
@@ -50,12 +84,16 @@ define 'openmap', (exports, root) ->
                 idx = parseInt idx, 10
                 $el.innerText = "##{name}"
             $el.onclick = ->
+                hide $atlasEntry
                 if $el.className is 'selected-filter'
+                    typeSelected = false
                     for marker in markers
                         marker.setMap map
                     $el.className = ''
-                    $typeInfo.style.display = 'none'
+                    hide $typeInfo
+                    show $newLink
                 else
+                    typeSelected = true
                     for marker in markers
                         if marker.__typ is idx
                             marker.setMap map
@@ -64,10 +102,11 @@ define 'openmap', (exports, root) ->
                     for el in $filters.childNodes
                         el.className = ''
                     $el.className = 'selected-filter'
+                    hide $newLink
                     $typeQuote.innerText = quote
                     $typeName.innerText = "##{name}"
                     $typeDesc.innerText = desc
-                    $typeInfo.style.display = 'block'
+                    show $typeInfo
                 return
             $el.__typ = idx
             $filters.appendChild $el
@@ -78,13 +117,53 @@ define 'openmap', (exports, root) ->
             addFilter idx, name, desc, quote
             icons[idx] = name.toLowerCase()
 
-        for [typ, lat, lng, name] in ATLAS_DATA
+        addMarkerInfo = (marker, name, desc) ->
+            id = genID name
+            if xy = IMAGES[id]
+                x = xy[0]
+                y = xy[1]
+            else
+                x = y = 0
+            ge.addListener marker, 'click', ->
+                doc.location = "/profile/#{id}"
+                return
+            ge.addListener marker, 'mouseover', ->
+                if x is 0
+                    nl = name.length
+                    $atlasPhoto.innerHTML = '&nbsp;'
+                    if (nl % 3) is 0
+                        $atlasPhoto.style.width = '200px'
+                    else if (nl % 2) is 0
+                        $atlasPhoto.style.width = '150px'
+                    else
+                        $atlasPhoto.style.width = '100px'
+                else
+                    photoWidth = Math.round(x / (y / 120))
+                    $atlasPhoto.style.width = "#{photoWidth}px"
+                    $atlasPhoto.innerHTML = "<img src='/image.view/#{id}/0/120' height='120px' width='#{photoWidth}px'>"
+                hide $typeInfo
+                hide $newLink
+                show $atlasEntry
+                ndesc = desc.replace('\r\n', '<br><br>').replace('\n\r', '<br><br>').replace('\r', '<br><br>').replace('\n', '<br><br>')
+                $atlasText.innerHTML = "<strong>#{name}</strong><br><br>#{ndesc}"
+                return
+            ge.addListener marker, 'mouseout', ->
+                hide $atlasEntry
+                if typeSelected
+                    show $typeInfo
+                else
+                    show $newLink
+                return
+            return
+
+        for [typ, lat, lng, name, desc] in ATLAS_DATA
             marker = new google.maps.Marker
                 position: new google.maps.LatLng(lat, lng)
                 title: name
                 icon: "/fixed/#{icons[typ]}.png"
             marker.__typ = typ
             markers.push marker
+            addMarkerInfo marker, name, desc
 
         lowLayer = 'grey'
         highLayer = 'toner-lite'
@@ -212,7 +291,115 @@ define 'openmap', (exports, root) ->
 
         return
 
-    exports.loadSlides = ->
+    exports.loadMosaic = ->
+        console.log MOSAIC_DATA
+        return
+
+    exports.loadProfile = ->
+        loadTweet()
+        all = []
+        seen = {}
+        curTags = []
+        curIdent = doc.$('profile-title').getAttribute('data-ident')
+        addCtrl = (elem, tag) ->
+            elem.onmouseover = ->
+                for [el, _, tags] in all
+                    if tags.indexOf(tag) is -1
+                        el.className = 'dim'
+                    else
+                        el.className = ''
+                return
+            elem.onmouseout = ->
+                for [el, _, _] in all
+                    el.className = ''
+                return
+            return
+        for elem in document.getElementsByClassName('profile-tag')
+            tag = elem.rel
+            curTags.push tag
+            addCtrl elem, tag
+        for [name, tags] in MOSAIC_DATA
+            ident = genID name
+            if ident is curIdent
+                continue
+            for placeTag in tags
+                for tag in curTags
+                    if tag == placeTag
+                        if (match = seen[ident])
+                            seen[ident][2].push tag
+                        else
+                            elem = doc.createElement 'a'
+                            if (aspect = IMAGES[ident])
+                                [x, y] = aspect
+                                width = Math.round((x/y) * 90)
+                                elem.style.background = "url('/image.view/#{ident}/0/120')"
+                            else
+                                nl = name.length
+                                if (nl % 3) is 0
+                                    width = 150
+                                else if (nl % 2) is 0
+                                    width = 112
+                                else
+                                    width = 75
+                            elem.href = "/profile/#{ident}"
+                            elem.title = name
+                            elem.style.width = "#{width}px"
+                            elem.innerHTML = "<div>#{name}</div>"
+                            val = [elem, name, [tag]]
+                            seen[ident] = val
+                            all.push val
+                        break
+        all.sort((a, b) ->
+            a2 = a[2].length
+            b2 = b[2].length
+            if a2 > b2
+                return -1
+            if a2 < b2
+                return 1
+            a1 = a[1]
+            b1 = b[1]
+            if a1 > b1
+                return 1
+            if a1 < b1
+                return -1
+            return 0
+        )
+        parent = doc.$ 'profile-related-images'
+        root.onresize = ->
+            innerWidth = doc.documentElement.clientWidth - (2 * (80 + 30))
+            parent.style.width = "#{innerWidth}px"
+            return
+        root.onresize()
+        for [elem, _, _] in all
+            parent.appendChild elem
+        $left = doc.$ 'scroll-left'
+        $right = doc.$ 'scroll-right'
+        parent.onscroll = ->
+            maxScroll = parent.scrollWidth - parent.clientWidth
+            if maxScroll is 0
+                hide $left
+                hide $right
+                return
+            left = parent.scrollLeft
+            if left is 0
+                hide $left
+            else
+                show $left
+            if left is maxScroll
+                hide $right
+            else
+                show $right
+            return
+        $left.onclick = ->
+            parent.scrollLeft -= parent.clientWidth
+            return
+        $right.onclick = ->
+            parent.scrollLeft += parent.clientWidth
+            return
+        parent.onscroll()
+        return
+
+    loadTweet = ->
 
         if TWEET?
 
@@ -230,6 +417,11 @@ define 'openmap', (exports, root) ->
             $tweetDate.innerHTML = TWEET[1]
             $tweetMessage.innerHTML = TWEET[2]
 
+        return
+
+    exports.loadSlides = ->
+
+        loadTweet()
         $slides = doc.$ 'slides-container'
 
         direction = 'right'

@@ -210,27 +210,12 @@ RNG.prototype.gamma = function(a) {
     }
 };
 
-/**
- * Accepts a dice rolling notation string and returns a generator
- * function for that distribution. The parser is quite flexible.
- * @param {string} expr A dice-rolling, expression i.e. '2d6+10'.
- * @param {RNG} rng An optional RNG object.
- * @returns {Function}
- */
-RNG.roller = function(expr, rng) {
-    var parts = expr.split(/(\d+)?d(\d+)([+-]\d+)?/).slice(1);
-    var dice = parseFloat(parts[0]) || 1;
-    var sides = parseFloat(parts[1]);
-    var mod = parseFloat(parts[2]) || 0;
-    rng = rng || new RNG();
-    return function() {
-        var total = dice + mod;
-        for (var i = 0; i < dice; i++) {
-            total += rng.random(sides);
-        }
-        return total;
-    };
+RNG.prototype.shuffle = function(xs) {
+    var i, j, tmp;
+    for (i = xs.length - 1; i >= 0; i--) {
+        j = parseInt(this.uniform() * (i+1), 10);
+        tmp = xs[i];
+        xs[i] = xs[j];
+        xs[j] = tmp;
+    }
 };
-
-/* Provide a pre-made generator instance. */
-RNG.$ = new RNG();

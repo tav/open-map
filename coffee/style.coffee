@@ -111,6 +111,79 @@ module.exports = (api) ->
                 fontSize: '14px'
                 padding: '3px'
 
+        '#mosaic':
+            marginTop: '30px'
+            marginBottom: '30px'
+            height: '305px'
+            overflowX: 'hidden'
+
+            'div.visible':
+                transform: 'translate3d(0,0,0)'
+                transition: 'left 1s, top 1s'
+
+            div:
+                position: 'absolute'
+
+                a:
+                    background: colorMain
+                    display: 'block'
+                    height: '150px'
+                    position: 'relative'
+
+                    div:
+                        background: 'rgba(255, 255, 255, 0.8)'
+                        color: colorMain
+                        lineHeight: '23px'
+                        padding: '3px 5px'
+                        textDecoration: 'none'
+                        position: 'absolute'
+                        bottom: '0px'
+                        width: '100%'
+
+        '#mosaic-empty':
+            textAlign: 'center'
+            fontSize: '20px'
+            display: 'none'
+
+        '#mosaic-scroll':
+            float: 'right'
+            fontSize: '30px'
+            marginLeft: '30px'
+            textAlign: 'center'
+            width: '200px'
+
+            a:
+                float: 'right'
+                width: '60px'
+
+        '#mosaic-tags':
+            marginBottom: '20px'
+            a:
+                color: colorMain
+                cursor: 'pointer'
+                lineHeight: '25px'
+                marginRight: '5px'
+                ':hover':
+                    textDecoration: 'underline'
+            'a.selected':
+                color: "#{colorAlt} !important"
+
+        '#mosaic-tags-container':
+            float: 'left'
+            marginLeft: "#{innerMargin + 30}px"
+            width: '500px'
+
+        '#mosaic-tags-input':
+            borderTop: 0
+            borderLeft: 0
+            borderRight: 0
+            borderBottom: '2px dashed #5E5C6B'
+            fontFamily: 'museo'
+            fontSize: '16px'
+            outline: 'none'
+            width: '200px'
+            marginBottom: '20px'
+
         '#nav':
             fontFamily: 'veneer'
             fontSize: '40px'
@@ -163,9 +236,6 @@ module.exports = (api) ->
             marginRight: "#{innerMargin + 30}px"
             marginTop: '30px'
             marginBottom: '30px'
-
-        '.link':
-            color: colorMain
 
         '#profile td':
             verticalAlign: 'top'
@@ -328,6 +398,9 @@ module.exports = (api) ->
         '.inner-content':
             margin: "0 #{innerMargin}px"
             padding: '10px 30px'
+
+        '.link':
+            color: colorMain
 
         '.new-input':
             border: '1px solid #ccc'

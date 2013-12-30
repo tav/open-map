@@ -292,7 +292,274 @@ define 'openmap', (exports, root) ->
         return
 
     exports.loadMosaic = ->
-        console.log MOSAIC_DATA
+        seed = doc.documentElement.clientWidth
+        seen = {}
+        all = []
+        ltags = {}
+        tags = []
+        elems = {}
+        ctrls = []
+        prepared = {}
+        setMosaicHover = (div, elem, name, tags, width) ->
+            idiv = doc.createElement 'div'
+            idiv.innerHTML = name
+            elem.appendChild idiv
+            div.onmouseover = ->
+                out = ''
+                for tag in tags
+                    out += "##{tag} "
+                idiv.innerHTML = out
+                return
+            div.onmouseout = ->
+                idiv.innerHTML = name
+                return
+            elem.style.width = "#{width}px"
+            div.style.width = "#{width}px"
+            idiv.style.width = "#{width - (2 * 5)}px"
+            return
+        for [name, mTags] in MOSAIC_DATA
+            ident = genID name
+            div = doc.createElement 'div'
+            elem = doc.createElement 'a'
+            if (aspect = IMAGES[ident])
+              [x, y] = aspect
+              width = Math.round((x/y) * 150)
+              div.__bg = "url('/image.view/#{ident}/0/150')"
+              div.__bgset = false
+            else
+              div.__bgset = true
+              nl = name.length
+              if (nl % 3) is 0
+                width = 250
+              else if (nl % 2) is 0
+                width = 187
+              else
+                width = 125
+            elem.href = "/profile/#{ident}"
+            elem.title = name
+            setMosaicHover div, elem, name, mTags, width
+            div.appendChild elem
+            div.__width = width
+            elems[ident] = div
+            all.push ident
+            for tag in mTags
+                if (existing = seen[tag])
+                    existing[1].push ident
+                else
+                    val = [tag, [ident]]
+                    seen[tag] = val
+                    tags.push val
+                    ltags[tag.toLowerCase()] = tag
+        genItems = (tag, items) ->
+            if (found = prepared[tag])
+                return found
+            if !items
+                items = seen[tag]
+                if !items
+                    return []
+                items = items[1]
+            items.sort()
+            rng = new RNG(seed)
+            rng.shuffle items
+            imgItems = []
+            divItems = []
+            for item in items
+                if IMAGES[item]
+                    imgItems.push item
+                else
+                    divItems.push item
+            for item in divItems
+                imgItems.push item
+            prepared[tag] = imgItems
+            return imgItems
+        genItems '*', all
+        $mosaic = doc.$ 'mosaic'
+        $empty = doc.$ 'mosaic-empty'
+        genLayout = (items) ->
+            layout = {}
+            row = 0
+            x = [0, 0]
+            edge = curWidth
+            for item in items
+                el = elems[item]
+                width = el.__width + 5
+                cur = x[row]
+                next = cur + width
+                layout[item] = [cur, next, row]
+                x[row] = next
+                if next > edge
+                    if row is 0
+                        row = 1
+                    else
+                        row = 0
+                        edge += curWidth
+            return layout
+        curTag = '*'
+        curWidth = doc.documentElement.clientWidth
+        state = [prepared['*'], genLayout(prepared['*']), curWidth]
+        offset = 0
+        for _, elem of elems
+            hide elem
+            $mosaic.appendChild elem
+        $left = doc.$ 'scroll-left'
+        $right = doc.$ 'scroll-right'
+        loadTag = (tag) ->
+            if tag is curTag
+                [items, layout, width] = state
+                if width isnt curWidth
+                    layout = genLayout items
+                    width = curWidth
+            else
+                curTag = tag
+                offset = 0
+                items = genItems tag
+                if items.length is 0
+                    show $empty
+                    return
+                hide $empty
+                ltag = tag.toLowerCase()
+                for ctrl in ctrls
+                    if ctrl.__tag is ltag
+                        ctrl.className = 'selected'
+                    else
+                        ctrl.className = ''
+                layout = genLayout items
+                width = curWidth
+            state = [items, layout, width]
+            min = offset
+            max = offset + curWidth
+            top = $mosaic.getBoundingClientRect().top
+            rowOffsets = [top, top + 155]
+            pending = []
+            more = false
+            for ident, el of elems
+                visible = false
+                if xy = layout[ident]
+                    if (min <= xy[0] <= max) or (min <= xy[1] <= max)
+                        visible = true
+                        rowHeight = rowOffsets[xy[2]]
+                        colX = xy[0] - offset
+                        if !(el.className is 'visible')
+                            if !el.__bgset
+                                el.firstChild.style.background = el.__bg
+                                el.__bgset = true
+                            rand = Math.round(Math.random() * 1000)
+                            # top
+                            if (rand % 4) is 0
+                                el.style.top = '-250px'
+                                el.style.left = "#{colX}px"
+                            # right
+                            else if (rand % 3) is 0
+                                el.style.right = "-#{el.__width + 100}px"
+                                el.style.top = "#{rowHeight}px"
+                            # bottom
+                            # else if (rand % 2) is 0
+                            #     el.style.bottom = '-250px'
+                            #     el.style.left = "#{colX}px"
+                            # left
+                            else
+                                el.style.left = "-#{el.__width + 100}px"
+                                el.style.top = "#{rowHeight}px"
+                            el.className = 'visible'
+                            show el
+                        pending.push [el, "#{rowHeight}px", "#{colX}px"]
+                    else if xy[0] > max
+                        more = true
+                if !visible
+                    hide el
+                    el.className = ''
+            if offset is 0
+                hide $left
+            else
+                show $left
+            if more
+                show $right
+            else
+                hide $right
+            setTimeout((->
+                for [el, nTop, nLeft] in pending
+                    el.style.left = nLeft
+                    el.style.top = nTop
+                return
+            ), 1)
+            return
+        $left.onclick = ->
+            offset -= curWidth
+            if offset < 0
+                offset = 0
+            loadTag curTag
+            return
+        $right.onclick = ->
+            offset += curWidth
+            loadTag curTag
+            return
+        doc.$('mosaic-form').onsubmit = (e) ->
+            e.preventDefault()
+            tag = doc.$('mosaic-tags-input').value.toLowerCase()
+            if tag is ''
+                tag = '*'
+            else
+                tag = ltags[tag]
+                if !tag
+                    tag = ''
+            if tag is curTag
+                return
+            loadTag tag
+            return
+        setTagHandler = (el, tag) ->
+            el.onclick = ->
+                if el.className is 'selected'
+                    loadTag '*'
+                else
+                    loadTag tag
+                return
+            el.__tag = tag.toLowerCase()
+            ctrls.push el
+            return
+        tags.sort((a, b) ->
+            a1 = a[1].length
+            b1 = b[1].length
+            if a1 > b1
+                return -1
+            if a1 < b1
+                return 1
+            a2 = a[0].length
+            b2 = a[0].length
+            if a2 > b2
+                return 1
+            if a2 < 2
+                return -1
+            return 0
+        )
+        $datalist = doc.$ 'tag-list'
+        allTags = tags.slice(0, tags.length)
+        allTags.sort()
+        for [tag, _] in allTags
+            el = doc.createElement 'option'
+            el.value = tag
+            el.innerHTML = tag
+            $datalist.appendChild el
+        topTags = tags.slice(0, 40)
+        topTags.sort()
+        $tags = doc.$ 'mosaic-tags'
+        for [tag, _] in topTags
+            el = doc.createElement 'a'
+            el.innerHTML = "##{tag}"
+            setTagHandler el, tag
+            $tags.appendChild el
+            $tags.appendChild doc.createTextNode ' '
+        $tagsContainer = doc.$ 'mosaic-tags-container'
+        root.onresize = ->
+            curWidth = doc.documentElement.clientWidth
+            width = curWidth - 80 - 30 - 300
+            if width < 300
+                width = 300
+            else if width > 850
+                width = 850
+            $tagsContainer.style.width = "#{width}px"
+            loadTag curTag
+            return
+        root.onresize()
         return
 
     exports.loadProfile = ->
